@@ -21,7 +21,7 @@ CHECKPOINT_DIR = ROOT / "checkpoints"
 
 DATA_PATH = DATA_DIR / "processed_recipes.txt"
 TOKENIZER_PATH = DATA_DIR / "recipe_tokenizer.model"
-CHECKPOINT_NAME = "recipegpt.pt"
+CHECKPOINT_NAME = "recipegpt_4HEADS.pt"
 
 BLOCK_SIZE = 256
 BATCH_SIZE = 32
@@ -37,7 +37,7 @@ LOG_EVERY = 50
 SEED = 42
 
 D_MODEL = 768
-NUM_HEADS = 8
+NUM_HEADS = 4
 N_LAYERS = 6
 DROPOUT = 0.1
 
@@ -57,9 +57,9 @@ WARMUP_RATIO = 0.03
 
 USE_WANDB = True
 WANDB_PROJECT = "RecipeGPT"
-WANDB_ENTITY = "aamerk4716-n-a-org"
+WANDB_ENTITY = "aamerk4716-n-a"
 WANDB_MODE = "online"
-WANDB_RUN_NAME = ""  # set this per run, e.g. "baseline-bs32-lr3e4"
+WANDB_RUN_NAME = "Experiment2_4heads"  # set this per run, e.g. "baseline-bs32-lr3e4"
 
 
 def build_config_dict(vocab_size: int) -> dict:
@@ -192,16 +192,27 @@ def train() -> None:
     config = build_config_dict(vocab_size)
 
     wandb = None
+    loss_chart_steps: list[int] = []
+    train_loss_history: list[float] = []
+    val_loss_history: list[float] = []
     if USE_WANDB:
         wandb = load_wandb()
-        wandb.init(
-            project=WANDB_PROJECT,
-            entity=WANDB_ENTITY,
-            mode=WANDB_MODE,
-            name=WANDB_RUN_NAME or None,
-            config=config,
-            dir=str(ROOT),
-        )
+        try:
+            wandb.init(
+                project=WANDB_PROJECT,
+                entity=WANDB_ENTITY,
+                mode=WANDB_MODE,
+                name=WANDB_RUN_NAME or None,
+                config=config,
+                dir=str(ROOT),
+            )
+            wandb.define_metric("global_step")
+            wandb.define_metric("loss/train", step_metric="global_step")
+            wandb.define_metric("loss/val", step_metric="global_step")
+        except Exception as exc:
+            raise RuntimeError(
+                "W&B init failed. Set WANDB_ENTITY to your personal username or a team entity; do not use an organization slug or email address."
+            ) from exc
 
     train_dataset, test_dataset, train_loader, test_loader = create_train_test_dataloaders(
         data_path=DATA_PATH,
@@ -290,8 +301,8 @@ def train() -> None:
 
                 should_step = step % GRAD_ACCUM_STEPS == 0 or step == len(train_loader)
                 loss_value = float(loss.item()) * GRAD_ACCUM_STEPS
-                running_loss += loss_value
                 if should_step:
+                    running_loss += loss_value
                     current_lr = get_learning_rate(global_step, total_updates, warmup_steps)
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = current_lr
@@ -321,9 +332,12 @@ def train() -> None:
                         f"tok/s={tokens_per_sec:,.0f} avg_tok/s={avg_tokens_per_sec:,.0f}"
                     )
                     if USE_WANDB and wandb is not None:
+                        loss_chart_steps.append(global_step)
+                        train_loss_history.append(avg_train_loss)
+                        val_loss_history.append(float("nan"))
                         wandb.log(
                             {
-                                "train/loss": avg_train_loss,
+                                "loss/train": avg_train_loss,
                                 "train/lr": current_lr,
                                 "train/tokens_per_sec": tokens_per_sec,
                                 "train/avg_tokens_per_sec": avg_tokens_per_sec,
@@ -331,6 +345,13 @@ def train() -> None:
                                 "train/epoch": epoch,
                                 "train/micro_step": step,
                                 "global_step": global_step,
+                                "loss_chart": wandb.plot.line_series(
+                                    xs=loss_chart_steps,
+                                    ys=[train_loss_history, val_loss_history],
+                                    keys=["train", "val"],
+                                    title="Train vs Val Loss",
+                                    xname="global_step",
+                                ),
                             },
                             step=global_step,
                         )
@@ -350,11 +371,21 @@ def train() -> None:
                     )
                     print(f"eval global_step={global_step} val_loss={eval_loss:.4f}")
                     if USE_WANDB and wandb is not None:
+                        loss_chart_steps.append(global_step)
+                        train_loss_history.append(float("nan"))
+                        val_loss_history.append(eval_loss)
                         wandb.log(
                             {
-                                "val/loss": eval_loss,
+                                "loss/val": eval_loss,
                                 "train/epoch": epoch,
                                 "global_step": global_step,
+                                "loss_chart": wandb.plot.line_series(
+                                    xs=loss_chart_steps,
+                                    ys=[train_loss_history, val_loss_history],
+                                    keys=["train", "val"],
+                                    title="Train vs Val Loss",
+                                    xname="global_step",
+                                ),
                             },
                             step=global_step,
                         )
