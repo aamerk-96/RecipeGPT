@@ -166,6 +166,8 @@ class RecipeGPT(nn.Module):
             next_tokens = torch.multinomial(next_token_probs, num_samples=1)  # (B, 1)
 
             x = torch.cat((x, next_tokens), dim=1)
+            if next_tokens.item() == 5:
+                break
 
         return x
 

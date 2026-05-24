@@ -84,26 +84,23 @@ def create_finetune_dataloaders(data_path, tokenizer, block_size=256, batch_size
     return train_loader, val_loader
 
 
-# Quick test 
+if __name__ == "__main__":
+    sp = spm.SentencePieceProcessor()
+    sp.load(r"D:\ML\ak_GPT\data\recipe_tokenizer.model")
 
-sp = spm.SentencePieceProcessor()
-sp.load(r"D:\ML\ak_GPT\data\recipe_tokenizer.model")
+    train_loader, val_loader = create_finetune_dataloaders(
+        data_path=r"D:\ML\ak_GPT\data\processed_recipes.txt",
+        tokenizer=sp,
+        block_size=256,
+        batch_size=32,
+    )
 
-train_loader, val_loader = create_finetune_dataloaders(
-    data_path=r"D:\ML\ak_GPT\data\processed_recipes.txt",
-    tokenizer=sp,
-    block_size=256,
-    batch_size=32,
-)
+    x, y, mask = train_loader.dataset[0]
+    print(f"input_ids shape: {x.shape}")
+    print(f"target_ids shape: {y.shape}")
+    print(f"loss_mask shape: {mask.shape}")
+    print(f"Prompt tokens (mask=0): {int((mask == 0).sum())}")
+    print(f"Completion tokens (mask=1): {int((mask == 1).sum())}")
 
-# Check one example
-x, y, mask = train_loader.dataset[0]
-print(f"input_ids shape: {x.shape}")
-print(f"target_ids shape: {y.shape}")
-print(f"loss_mask shape: {mask.shape}")
-print(f"Prompt tokens (mask=0): {int((mask == 0).sum())}")
-print(f"Completion tokens (mask=1): {int((mask == 1).sum())}")
-
-# Decode to verify the reordering looks right
-full_tokens = torch.cat([x[:1], y])  # reconstruct full sequence
-print(sp.decode(full_tokens.tolist()))
+    full_tokens = torch.cat([x[:1], y])
+    print(sp.decode(full_tokens.tolist()))
