@@ -2,7 +2,7 @@
 
 A 91.9M parameter transformer language model trained to generate recipes. Built entirely from scratch in PyTorch - no HuggingFace transformers, no pretrained weights, no shortcuts. This was my attempt at learning how language models actually work from the ground up.
 
-## What I Built From Scratch (with occasional AI assistance for debugging and concepts)
+## What I Built (with occasional AI assistance for debugging and concepts)
 
 - Scaled dot-product attention with causal masking
 - Multi-head attention with learned Q, K, V projections
@@ -56,7 +56,7 @@ large bowl. | Add sugar with aluminum mixture. | Pour over medium-skinned water.
 sheet. <|endofrecipe|>
 ```
 
-Is it great? Probably not but a good starting point! 
+Is it great? Probably not but helped me learn a decent amount. 
 
 
 ## Status - Ongoing and what I'm working on
